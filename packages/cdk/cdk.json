@@ -18,7 +18,7 @@
     "env": "",
     "tagKey": null,
     "tagValue": null,
-    "ragEnabled": true,
+    "ragEnabled": false,
     "kendraIndexArn": null,
     "kendraIndexLanguage": "ja",
     "kendraDataSourceBucketName": null,
