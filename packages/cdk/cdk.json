@@ -69,7 +69,7 @@
     "mcpEnabled": false,
     "flows": [],
     "agentBuilderEnabled": false,
-    "createGenericAgentCoreRuntime": true,
+    "createGenericAgentCoreRuntime": false,
     "agentCoreRegion": null,
     "agentCoreExternalRuntimes": [],
     "agentCoreVpcId": null,
