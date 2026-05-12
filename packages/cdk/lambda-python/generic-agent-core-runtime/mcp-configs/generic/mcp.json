@@ -74,6 +74,17 @@
         "category": "Search",
         "description": "Web search and research capabilities powered by Tavily"
       }
+    },
+    "tooluniverse": {
+      "command": "uvx",
+      "args": ["--refresh", "tooluniverse"],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      },
+      "metadata": {
+        "category": "AI/ML",
+        "description": "1000+ scientific ML models, datasets, APIs for AI scientist workflows"
+      }
     }
   }
 }
