@@ -3,9 +3,9 @@ import * as cdk from 'aws-cdk-lib';
 import {
   processedStackInputSchema,
   stackInputSchema,
-  StackInput,
 } from '../lib/stack-input';
 import { createStacks } from '../lib/create-stacks';
+import { stackInput } from './stack-input.fixture';
 import {
   BUNDLING_STACKS,
   DISABLE_ASSET_STAGING_CONTEXT,
@@ -17,69 +17,6 @@ const appContext = {
 };
 
 describe('GenerativeAiUseCases', () => {
-  const stackInput: Partial<StackInput> = {
-    account: '123456890123',
-    region: 'us-east-1',
-    env: '',
-    ragEnabled: true,
-    kendraIndexArn: null,
-    kendraDataSourceBucketName: null,
-    kendraIndexScheduleEnabled: false,
-    kendraIndexScheduleCreateCron: null,
-    kendraIndexScheduleDeleteCron: null,
-    ragKnowledgeBaseEnabled: true,
-    ragKnowledgeBaseStandbyReplicas: false,
-    ragKnowledgeBaseAdvancedParsing: false,
-    ragKnowledgeBaseAdvancedParsingModelId:
-      'anthropic.claude-3-sonnet-20240229-v1:0',
-    embeddingModelId: 'amazon.titan-embed-text-v2:0',
-    selfSignUpEnabled: true,
-    allowedSignUpEmailDomains: null,
-    samlAuthEnabled: false,
-    samlCognitoDomainName: '',
-    samlCognitoFederatedIdentityProviderName: '',
-    modelRegion: 'us-east-1',
-    modelIds: [
-      {
-        modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',
-        region: 'us-east-1',
-      },
-    ],
-    imageGenerationModelIds: [
-      { modelId: 'stability.stable-diffusion-xl-v1', region: 'us-east-1' },
-    ],
-    videoGenerationModelIds: [
-      { modelId: 'amazon.nova-reel-v1:0', region: 'us-east-1' },
-    ],
-    speechToSpeechModelIds: [
-      { modelId: 'amazon.nova-sonic-v1:0', region: 'us-east-1' },
-    ],
-    endpointNames: [],
-    agentEnabled: true,
-    searchAgentEnabled: true,
-    searchEngine: 'Brave',
-    searchApiKey: 'XXXXXX',
-    agents: [],
-    flows: [],
-    createGenericAgentCoreRuntime: true,
-    agentBuilderEnabled: true,
-    agentCoreRegion: 'us-east-1',
-    agentCoreExternalRuntimes: [],
-    allowedIpV4AddressRanges: null,
-    allowedIpV6AddressRanges: null,
-    allowedCountryCodes: ['JP'],
-    hostName: null,
-    domainName: null,
-    hostedZoneId: null,
-    dashboard: true,
-    anonymousUsageTracking: true,
-    guardrailEnabled: true,
-    crossAccountBedrockRoleArn: '',
-    useCaseBuilderEnabled: true,
-    tagKey: null,
-    tagValue: null,
-  };
-
   test('matches the snapshot', () => {
     const app = new cdk.App({
       context: appContext,
@@ -137,6 +74,7 @@ describe('GenerativeAiUseCases', () => {
     const params = processedStackInputSchema.parse({
       ...stackInput,
       closedNetworkMode: true,
+      closedNetworkApiGatewayVpcEndpointIds: ['vpce-0123456789abcdef0'],
     });
 
     const {
@@ -312,6 +250,64 @@ describe('GenerativeAiUseCases', () => {
         ...stackInput,
         agentCoreVpcId: null,
         agentCoreSubnetIds: null,
+      })
+    ).not.toThrow();
+  });
+
+  test('allowedDevOrigins is appended to the API CORS allow list', () => {
+    const app = new cdk.App({ context: appContext });
+    const params = processedStackInputSchema.parse({
+      ...stackInput,
+      allowedDevOrigins: ['http://localhost:5173'],
+    });
+
+    const { generativeAiUseCasesStack } = createStacks(app, params);
+    if (!generativeAiUseCasesStack) {
+      throw new Error('Stack was not created');
+    }
+
+    const template = Template.fromStack(generativeAiUseCasesStack);
+    const functions = template.findResources('AWS::Lambda::Function');
+    const allowedOrigins = Object.values(functions)
+      .map(
+        (fn) =>
+          (
+            fn.Properties?.Environment?.Variables as
+              | Record<string, unknown>
+              | undefined
+          )?.ALLOWED_ORIGINS
+      )
+      .filter((value): value is { 'Fn::Join': unknown[] } => Boolean(value));
+
+    // The deployed web URL is a token, so only the literal part is asserted:
+    // the dev origin must be joined onto the CloudFront origin, not replace it.
+    expect(allowedOrigins).toHaveLength(1);
+    expect(JSON.stringify(allowedOrigins[0])).toContain(
+      ',http://localhost:5173'
+    );
+  });
+
+  test('allowedDevOrigins rejects values that are not origins', () => {
+    // The API handler compares the Origin header exactly, so a path or a
+    // trailing slash would silently never match.
+    expect(() =>
+      stackInputSchema.parse({
+        ...stackInput,
+        allowedDevOrigins: ['http://localhost:5173/'],
+      })
+    ).toThrow();
+
+    expect(() =>
+      stackInputSchema.parse({
+        ...stackInput,
+        allowedDevOrigins: ['localhost:5173'],
+      })
+    ).toThrow();
+
+    expect(() =>
+      stackInputSchema.parse({
+        ...stackInput,
+        allowedDevOrigins: ['http://localhost:5173', 'https://example.com'],
       })
     ).not.toThrow();
   });

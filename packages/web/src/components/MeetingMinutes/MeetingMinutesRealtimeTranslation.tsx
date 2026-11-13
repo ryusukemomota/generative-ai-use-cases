@@ -14,6 +14,7 @@ import MeetingMinutesTranscriptSegment from './MeetingMinutesTranscriptSegment';
 import MeetingMinutesSettingsPanel from './MeetingMinutesSettingsPanel';
 import MeetingMinutesControlButtons from './MeetingMinutesControlButtons';
 import useMicrophone from '../../hooks/useMicrophone';
+import { getTranscribeLanguageOptions } from '../../utils/AudioUtils';
 import useScreenAudio from '../../hooks/useScreenAudio';
 import useRealtimeTranslation from '../../hooks/useRealtimeTranslation';
 import useChatApi from '../../hooks/useChatApi';
@@ -28,6 +29,12 @@ import {
   getLanguageNameFromCode,
   getRecentSegmentsContext,
 } from './MeetingMinutesContextGenerator';
+
+// The context fields sit above the transcript, which takes the remaining height.
+// Textarea grows with its content up to its maxHeight (300px by default), and the
+// generated context is rewritten every minute, so without a cap the fields keep
+// growing and squeeze the transcript. Cap them at h-20 and scroll inside instead.
+const CONTEXT_MAX_HEIGHT = 80;
 
 const getTranslationTarget = (
   translationType: string,
@@ -86,6 +93,14 @@ const MeetingMinutesRealtimeTranslation: React.FC<
   const isAtBottomRef = useRef<boolean>(true);
   const generateSystemContextRef = useRef<(() => Promise<void>) | null>(null);
   const realtimeSegmentsRef = useRef<RealtimeSegment[]>([]);
+  const translateSentenceRef = useRef<
+    | ((
+        segment: RealtimeSegment,
+        sentenceIndex: number,
+        translationSegment: TranslationSegment
+      ) => Promise<void>)
+    | null
+  >(null);
 
   // Microphone and screen audio hooks
   const {
@@ -230,7 +245,9 @@ const MeetingMinutesRealtimeTranslation: React.FC<
           );
         }
 
-        const recentSegmentsText = getRecentSegmentsContext(realtimeSegments);
+        const recentSegmentsText = getRecentSegmentsContext(
+          realtimeSegmentsRef.current
+        );
         if (recentSegmentsText) {
           contexts.push(`Recent conversation context: ${recentSegmentsText}`);
         }
@@ -287,10 +304,12 @@ const MeetingMinutesRealtimeTranslation: React.FC<
         console.error('Failed to translate sentence:', error);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     [
       selectedTranslationModel,
+      primaryLanguage,
       secondaryLanguage,
+      translationType,
       userDefinedContext,
       systemGeneratedContext,
       translate,
@@ -300,6 +319,11 @@ const MeetingMinutesRealtimeTranslation: React.FC<
       // Note: getLanguageNameFromCode and getRecentSegmentsContext are external functions and stable
     ]
   );
+
+  // Keep ref updated with the latest translateSentence so that the
+  // interval-based translation always uses current settings
+  // (avoids stale closures; same pattern as generateSystemContextRef)
+  translateSentenceRef.current = translateSentence;
 
   // Hook for generating system context
   const { predict } = useChatApi();
@@ -626,20 +650,30 @@ const MeetingMinutesRealtimeTranslation: React.FC<
         for (const translationSentence of sentencesToTranslate) {
           const sentenceIndex =
             segment.translationSegments.indexOf(translationSentence);
-          // Translate individual sentence (duplicate prevention is now handled inside translateSentence)
-          await translateSentence(segment, sentenceIndex, translationSentence);
+          // Translate individual sentence via ref to always use the latest
+          // settings (target language, contexts). Calling translateSentence
+          // directly here would capture a stale closure because this effect
+          // intentionally omits function dependencies.
+          // (duplicate prevention is handled inside translateSentence)
+          if (translateSentenceRef.current) {
+            await translateSentenceRef.current(
+              segment,
+              sentenceIndex,
+              translationSentence
+            );
+          }
         }
       }
     }, translationInterval);
 
     return () => clearInterval(intervalId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     realtimeTranslationEnabled,
     selectedTranslationModel,
     translationInterval,
     // Note: We intentionally omit function dependencies to prevent infinite loop recreation of this useEffect.
-    // The interval function accesses current values through closure, which is acceptable for this use case.
+    // The interval callback reads the latest values via refs
+    // (realtimeSegmentsRef / translateSentenceRef) to avoid stale closures.
   ]);
 
   // Recording states
@@ -690,7 +724,7 @@ const MeetingMinutesRealtimeTranslation: React.FC<
           ? undefined
           : (primaryLanguage as LanguageCode);
       languageOptions =
-        primaryLanguage === 'auto' ? ['en-US', 'ja-JP'] : undefined;
+        primaryLanguage === 'auto' ? getTranscribeLanguageOptions() : undefined;
       enableMultiLanguage = false;
     }
 
@@ -851,6 +885,7 @@ const MeetingMinutesRealtimeTranslation: React.FC<
               </label>
               <Textarea
                 className="h-20 w-full text-sm"
+                maxHeight={CONTEXT_MAX_HEIGHT}
                 placeholder={t('translate.userDefinedContextPlaceholder')}
                 value={userDefinedContext}
                 onChange={setUserDefinedContext}
@@ -862,6 +897,7 @@ const MeetingMinutesRealtimeTranslation: React.FC<
               </label>
               <Textarea
                 className="h-20 w-full text-sm"
+                maxHeight={CONTEXT_MAX_HEIGHT}
                 placeholder={t('translate.systemGeneratedContextPlaceholder')}
                 value={systemGeneratedContext}
                 onChange={setSystemGeneratedContext}

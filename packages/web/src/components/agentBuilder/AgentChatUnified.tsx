@@ -9,7 +9,7 @@ import useFollow from '../../hooks/useFollow';
 import { useAgentCore } from '../../hooks/useAgentCore';
 import { MODELS } from '../../hooks/useModel';
 import useFiles from '../../hooks/useFiles';
-import { FileLimit, AgentConfiguration } from 'generative-ai-use-cases';
+import { AgentConfiguration } from 'generative-ai-use-cases';
 import BedrockIcon from '../../assets/bedrock.svg?react';
 import {
   PiRobot as RobotIcon,
@@ -18,38 +18,9 @@ import {
 } from 'react-icons/pi';
 import ButtonIcon from '../ButtonIcon';
 import Select from '../Select';
-
-// Define file limits for the chat interface
-// File size limits for AgentCore (AgentCore Runtime route: Frontend → AgentCore Runtime → Bedrock Converse API)
-// - AgentCore Runtime payload limit: 100MB (not a bottleneck)
-// - Anthropic Claude max request size: 32MB for the entire HTTP request body
-// - Nova PDF/DOCX direct upload limit: 25MB combined (model-side error if exceeded)
-// - Setting to 32MB as the upper bound based on Claude's documented limit
-const fileLimit: FileLimit = {
-  accept: {
-    doc: [
-      '.csv',
-      '.doc',
-      '.docx',
-      '.html',
-      '.md',
-      '.pdf',
-      '.txt',
-      '.xls',
-      '.xlsx',
-      '.yaml',
-      '.json',
-    ],
-    image: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
-    video: [],
-  },
-  maxFileCount: 5,
-  maxFileSizeMB: 32,
-  maxImageFileCount: 5,
-  maxImageFileSizeMB: 5,
-  maxVideoFileCount: 0,
-  maxVideoFileSizeMB: 0,
-};
+import useDropOverlay from '../../hooks/useDropOverlay';
+import useAcceptedExtensions from '../../hooks/useAcceptedExtensions';
+import { agentCoreFileLimit } from '../../utils/fileLimit';
 
 interface AgentChatProps {
   agent: AgentConfiguration;
@@ -100,7 +71,6 @@ const AgentChatUnified: React.FC<AgentChatProps> = ({
 
   const [chatContent, setChatContent] = useState('');
   const [initialized, setInitialized] = useState(false);
-  const [isOver, setIsOver] = useState(false);
 
   // Get models from MODELS
   const { modelIds: availableModels, modelDisplayName } = MODELS;
@@ -156,15 +126,7 @@ Please respond as this agent with the specified behavior and personality.`;
   }, [agent?.name, agent?.description, agent?.systemPrompt, initialized]);
 
   // Accept file types based on model
-  const accept = useMemo(() => {
-    if (!modelId) return [];
-    const feature = MODELS.getModelMetadata(modelId);
-    return [
-      ...(feature.flags.doc ? fileLimit.accept.doc : []),
-      ...(feature.flags.image ? fileLimit.accept.image : []),
-      ...(feature.flags.video ? fileLimit.accept.video : []),
-    ];
-  }, [modelId]);
+  const accept = useAcceptedExtensions(agentCoreFileLimit, modelId);
 
   // File upload enabled
   const fileUpload = useMemo(() => {
@@ -240,24 +202,13 @@ Please respond as this agent with the specified behavior and personality.`;
     clearFiles();
   }, [clearChat, clearFiles]);
 
-  // Handle drag and drop for files
-  const handleDragOver = (event: React.DragEvent) => {
-    event.preventDefault();
-    setIsOver(true);
-  };
-
-  const handleDragLeave = (event: React.DragEvent) => {
-    event.preventDefault();
-    setIsOver(false);
-  };
-
-  const handleDrop = (event: React.DragEvent) => {
-    event.preventDefault();
-    setIsOver(false);
-    if (event.dataTransfer.files) {
-      uploadFiles(Array.from(event.dataTransfer.files), fileLimit, accept);
-    }
-  };
+  // Drop overlay; see useDropOverlay for why it closes on its own.
+  const onDropFiles = useCallback(
+    (files: File[]) => uploadFiles(files, agentCoreFileLimit, accept),
+    [uploadFiles, accept]
+  );
+  const { isOver, hideOverlay, handleDragOver, handleDragLeave, handleDrop } =
+    useDropOverlay(onDropFiles);
 
   // Render unified header with all controls
   const renderUnifiedHeader = () => (
@@ -377,6 +328,7 @@ Please respond as this agent with the specified behavior and personality.`;
       <div
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        onClick={hideOverlay}
         className={`${layout === 'card' ? 'absolute inset-0' : 'fixed bottom-0 left-0 right-0 top-0'} z-[999] bg-slate-300/75 p-10 text-center`}>
         <div className="flex h-full w-full items-center justify-center outline-dashed">
           <div className="font-bold">{t('chat.drop_files')}</div>
@@ -447,7 +399,7 @@ Please respond as this agent with the specified behavior and personality.`;
               onSend={handleSendMessage}
               onReset={handleResetChat}
               fileUpload={fileUpload}
-              fileLimit={fileLimit}
+              fileLimit={agentCoreFileLimit}
               accept={accept}
               fullWidth={true}
             />
@@ -490,7 +442,7 @@ Please respond as this agent with the specified behavior and personality.`;
           onSend={handleSendMessage}
           onReset={handleResetChat}
           fileUpload={fileUpload}
-          fileLimit={fileLimit}
+          fileLimit={agentCoreFileLimit}
           accept={accept}
         />
       </div>

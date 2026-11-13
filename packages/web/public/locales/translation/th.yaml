@@ -18,6 +18,10 @@ chat:
   hint_cmd_enter: ⌘ + Enter เพื่อส่ง
   hint_ctrl_enter: Ctrl + Enter เพื่อส่ง
   history: ประวัติ
+  history_last_30_days: 30 วันที่ผ่านมา
+  history_last_7_days: 7 วันที่ผ่านมา
+  history_today: วันนี้
+  history_yesterday: เมื่อวาน
   initialize: เริ่มต้นใหม่
   open_link: เปิดลิงก์
   prompt_examples: ตัวอย่าง prompt
@@ -39,6 +43,7 @@ common:
   collapse: ย่อ
   colon: ':'
   complete: เสร็จสิ้น
+  copy_table: คัดลอกตาราง
   create: สร้าง
   delete: ลบ
   enter_text: ป้อนข้อความ
@@ -320,9 +325,18 @@ drawer:
 error:
   streamingError:
     ACCESS_DENIED: โมเดลที่เลือกยังไม่ได้เปิดใช้งาน กรุณาเปิดใช้งานโมเดลในคอนโซล Amazon Bedrock
-    PAYLOAD_TOO_LARGE: ไฟล์แนบมีขนาดใหญ่เกินไป กรุณาลดขนาดไฟล์หรือจำนวนไฟล์แนบแล้วลองใหม่อีกครั้ง
+    CONTEXT_TOO_LONG: บทสนทนาหรือไฟล์แนบยาวเกินกว่าที่โมเดลจะอ่านได้ กรุณาลดเนื้อหาไฟล์แนบ (จำนวนหน้า แถว หรือชีต) หรือเริ่มแชทใหม่
+    DEPENDENCY_FAILED: เกิดข้อผิดพลาดในทรัพยากรที่เอเจนต์หรือฐานความรู้เรียกใช้ (เช่น ฟังก์ชัน Lambda ของกลุ่มการดำเนินการ) กรุณาตรวจสอบการตั้งค่าและบันทึก แล้วลองอีกครั้ง
+    DOCUMENT_TOO_LARGE: เอกสารมีขนาดใหญ่เกินกว่าจะส่งได้ กรุณาแบ่งเอกสารหรือลดเนื้อหาแล้วลองใหม่อีกครั้ง
+    DUPLICATE_FILE_NAME: มีไฟล์ชื่อซ้ำกันในบทสนทนานี้ (รวมไฟล์ที่แนบไว้ก่อนหน้า) กรุณาเปลี่ยนชื่อไฟล์แล้วแนบใหม่ หรือเริ่มแชทใหม่
+    EMPTY_MESSAGE: บทสนทนามีข้อความว่างจึงไม่สามารถดำเนินการต่อได้ กรุณาเริ่มแชทใหม่
+    IMAGE_TOO_LARGE: รูปภาพมีขนาดใหญ่เกินไป รูปภาพแต่ละไฟล์ต้องมีขนาดไม่เกิน 3.75 MB
+    INVALID_FILE_NAME: ไม่สามารถใช้ชื่อไฟล์นี้ได้ กรุณาเปลี่ยนเป็นชื่อสั้นๆ ที่มีเฉพาะตัวอักษรภาษาอังกฤษและตัวเลข แล้วแนบใหม่อีกครั้ง
+    PAYLOAD_TOO_LARGE: ไฟล์แนบรวมกันมีขนาดใหญ่เกินกว่าจะส่งได้ ไฟล์ที่แนบไว้ก่อนหน้าในบทสนทนานี้จะถูกส่งไปพร้อมกันทุกครั้งและนับรวมด้วย กรุณานำไฟล์แนบใหม่ออกหรือลดขนาด หรือเริ่มแชทใหม่
     THROTTLING: เซิร์ฟเวอร์มีการใช้งานหนาแน่นในขณะนี้ กรุณาลองใหม่อีกครั้งในภายหลัง
+    TOO_MANY_DOCUMENTS: แนบเอกสารมากเกินไป เอกสารที่แนบไว้ก่อนหน้าในบทสนทนานี้ก็นับรวมด้วย กรุณาลดจำนวนไฟล์แนบหรือเริ่มแชทใหม่
     UNKNOWN_ERROR: เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้งหรือติดต่อผู้ดูแลระบบ
+    UNSUPPORTED_FILE_TYPE: ไม่รองรับไฟล์ประเภทนี้
 feedback:
   additional_feedback: หากคุณมีข้อเสนอแนะเพิ่มเติม โปรดป้อนที่นี่ (ไม่บังคับ)
   reason_error: โปรดเลือกเหตุผล
@@ -335,6 +349,7 @@ feedback:
 files:
   error:
     fileCountExceeded: 'โปรดจำกัดไฟล์ไม่เกิน {{maxCount}} ไฟล์'
+    fileCountExceededInChat: แชทนี้มีเอกสารที่แนบไว้ก่อนหน้าแล้ว {{previousCount}} ไฟล์ และแชทหนึ่งแนบเอกสารได้สูงสุด {{maxCount}} ไฟล์ กรุณาลดจำนวนไฟล์แนบหรือเริ่มแชทใหม่
     fileSizeExceeded: '{{fileName}} เกินขนาดไฟล์สูงสุดที่ {{maxSize}} MB'
     imageCountExceeded: 'โปรดจำกัดไฟล์รูปภาพไม่เกิน {{maxCount}} ไฟล์'
     invalidExtension: >-
@@ -570,10 +585,13 @@ language:
   th: ภาษาไทย
   zh: ภาษาจีน
 meetingMinutes:
+  auto_detect_candidates: 'ตรวจจับอัตโนมัติจาก: {{languages}}'
+  auto_detect_change: เปลี่ยนในการตั้งค่า
   auto_generate: สร้างอัตโนมัติ
   clear_minutes: ล้างรายงานการประชุม
   custom_prompt: พรอมต์แบบกำหนดเอง
   custom_prompt_placeholder: ป้อนพรอมต์แบบกำหนดเองสำหรับการสร้างรายงานการประชุม...
+  edit_in_writer: แก้ไขในการเขียน
   frequency: ความถี่ในการสร้าง
   frequency_10min: ทุก 10 นาที
   frequency_1min: ทุกนาที
@@ -739,6 +757,8 @@ setting:
     show_tools: แสดงเครื่องมือ
     show_use_case_builder: แสดง Use Case Builder
     stats: สถิติ
+    transcribe_languages: ภาษาที่ตรวจจับอัตโนมัติสำหรับการรู้จำเสียง
+    transcribe_languages_help: 'ภาษาที่ใช้เป็นตัวเลือกเมื่อตั้งค่าภาษาการรู้จำเสียงเป็น "อัตโนมัติ" (บันทึกการประชุม การป้อนด้วยเสียง การถอดเสียงจากไฟล์) เลือก 2 ถึง 5 ภาษา ยิ่งเลือกมาก ยิ่งตรวจจับภาษาของคำพูดสั้นๆ ผิดได้ง่าย'
     typing_animation: แอนิเมชันการพิมพ์
     version: เวอร์ชัน
     version_help: อ้างอิงเวอร์ชันใน package.json ของ generative-ai-use-cases
@@ -765,6 +785,7 @@ summarize:
   text_to_summarize: ข้อความที่จะสรุป
   title: สรุป
 transcribe:
+  audio_source_lost: การถอดเสียงหยุดลงเนื่องจากไม่สามารถใช้แหล่งเสียงได้อีกต่อไป
   detailed_parameters: ตั้งค่าขั้นสูงแบบกำหนดเอง
   direct_input: ป้อนข้อมูลโดยตรง
   direct_input_instruction: โปรดป้อนข้อความต้นฉบับสำหรับรายงานการประชุมโดยตรงในพื้นที่ "บันทึกการถอดความ" ด้านล่าง
@@ -773,6 +794,8 @@ transcribe:
   max_speakers: จำนวนผู้พูดสูงสุด
   max_speakers_help: จำนวนผู้พูดสูงสุดในบทสนทนาที่ต้องการแยกแยะ
   mic_input: อินพุตไมโครโฟน
+  reconnect_failed: การถอดเสียงหยุดลงเนื่องจากการเชื่อมต่อใหม่ล้มเหลว กรุณาเริ่มบันทึกอีกครั้ง
+  reconnecting: การเชื่อมต่อการถอดเสียงถูกขัดจังหวะ กำลังเชื่อมต่อใหม่โดยอัตโนมัติ
   result_placeholder: ข้อความที่แปลงจากเสียงของคุณ
   screen_audio: เสียงหน้าจอ
   screen_audio_error: ข้อผิดพลาดเสียงหน้าจอ
@@ -1124,9 +1147,14 @@ videoAnalyzer:
 voiceChat:
   close: ปิดเซสชั่น
   default_system_prompt: You are an AI assistant.
+  gender:
+    feminine: เสียงคล้ายผู้หญิง
+    masculine: เสียงคล้ายผู้ชาย
   im_listening: กำลังฟัง...
+  multilingual: หลายภาษา
   start: เริ่มเซสชันใหม่
   title: Voice Chat
+  voice: เสียง
 webcontent:
   additional_context: บริบทเพิ่มเติม
   additional_context_placeholder: คุณสามารถป้อนประเด็นเพิ่มเติมที่ต้องการพิจารณา (เช่น สรุป)

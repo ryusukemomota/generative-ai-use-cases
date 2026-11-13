@@ -43,8 +43,11 @@ const baseStackInputSchema = z.object({
       ])
     )
     .default([
+      'global.anthropic.claude-opus-5-5',
       'global.anthropic.claude-opus-5',
+      'global.anthropic.claude-sonnet-5-5',
       'global.anthropic.claude-sonnet-5',
+      'global.anthropic.claude-haiku-5-5',
       'global.anthropic.claude-sonnet-4-6',
       'global.anthropic.claude-opus-4-8',
       'global.anthropic.claude-opus-4-7',
@@ -63,7 +66,9 @@ const baseStackInputSchema = z.object({
         }),
       ])
     )
-    .default(['amazon.nova-canvas-v1:0']),
+    .default([
+      { modelId: 'stability.stable-image-core-v1:1', region: 'us-west-2' },
+    ]),
   videoGenerationModelIds: z
     .array(
       z.union([
@@ -74,7 +79,7 @@ const baseStackInputSchema = z.object({
         }),
       ])
     )
-    .default(['amazon.nova-reel-v1:0']),
+    .default([]),
   speechToSpeechModelIds: z
     .array(
       z.union([
@@ -85,7 +90,7 @@ const baseStackInputSchema = z.object({
         }),
       ])
     )
-    .default(['amazon.nova-2-sonic-v1:0']),
+    .default(['amazon.nova-2-5-sonic']),
   endpointNames: z
     .array(
       z.union([
@@ -131,7 +136,7 @@ const baseStackInputSchema = z.object({
   ragKnowledgeBaseAdvancedParsing: z.boolean().default(false),
   ragKnowledgeBaseAdvancedParsingModelId: z
     .string()
-    .default('anthropic.claude-3-sonnet-20240229-v1:0'),
+    .default('global.anthropic.claude-sonnet-4-6'),
   ragKnowledgeBaseBinaryVector: z.boolean().default(false),
   queryDecompositionEnabled: z.boolean().default(false),
   rerankingModelId: z.string().nullish(),
@@ -194,6 +199,19 @@ const baseStackInputSchema = z.object({
       })
     )
     .default([]),
+  // Additional origins allowed to call the API, on top of the deployed web URL.
+  // Intended for local frontend development (`npm run web:devw`), which serves
+  // the SPA from http://localhost:5173 while calling the deployed API.
+  allowedDevOrigins: z
+    .array(
+      z
+        .string()
+        .regex(
+          /^https?:\/\/[^/\s]+$/,
+          'allowedDevOrigins must be an origin such as http://localhost:5173 (scheme + host, no path or trailing slash)'
+        )
+    )
+    .default([]),
   // WAF
   allowedIpV4AddressRanges: z.array(z.string()).nullish(),
   allowedIpV6AddressRanges: z.array(z.string()).nullish(),
@@ -212,6 +230,8 @@ const baseStackInputSchema = z.object({
   closedNetworkVpcIpv4Cidr: z.string().default('10.0.0.0/16'),
   closedNetworkVpcId: z.string().nullish(),
   closedNetworkSubnetIds: z.array(z.string()).nullish(),
+  closedNetworkVpcEndpointAzs: z.array(z.string()).nullish(),
+  closedNetworkApiGatewayVpcEndpointIds: z.array(z.string()).nullish(),
   closedNetworkCertificateArn: z.string().nullish(),
   closedNetworkDomainName: z.string().nullish(),
   closedNetworkCreateTestEnvironment: z.boolean().default(true),
